@@ -1,0 +1,107 @@
+version: '3.8'
+
+networks:
+  # proxy:
+  #   external:
+  #     name: ${PROXY_NETWORK_NAME}
+  # redis:
+  #   external:
+  #     name: redis_default
+  # mysql:
+  #   external:
+  #     name: mysql_default
+  backend:
+
+services:
+  php:
+    build:
+      context: ./php
+      args:
+        - PHP_VERSION=${PHP_VERSION}
+        - COMPOSER_REPO_PACKAGIST=${COMPOSER_REPO_PACKAGIST}
+        - APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}
+        - ALPINE_APK_REPO=${ALPINE_APK_REPO}
+    container_name: ${COMPOSE_PROJECT_NAME}-php-fpm
+    volumes:
+      - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+      - ${APP_CODE_PATH_CONTAINER}/vendor
+    networks:
+      - backend
+      - redis
+      - mysql
+    command: ["php-fpm"]
+    expose:
+      - "9000"
+
+  php-worker:
+    build:
+      context: ./php-worker
+      args:
+        - PHP_VERSION=${PHP_VERSION}
+        - COMPOSER_REPO_PACKAGIST=${COMPOSER_REPO_PACKAGIST}
+        - APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}
+        - ALPINE_APK_REPO=${ALPINE_APK_REPO}
+    container_name: ${COMPOSE_PROJECT_NAME}-php-worker
+    volumes:
+      - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+      - ${APP_CODE_PATH_CONTAINER}/vendor
+      - ./php-worker/supervisord.d:/etc/supervisord.d
+    networks:
+      - backend
+      # - redis
+      # - mysql
+
+  nginx:
+    image: nginx:alpine
+    container_name: ${COMPOSE_PROJECT_NAME}-nginx
+    networks:
+      - backend
+      # - proxy
+    depends_on:
+      - php
+    restart: unless-stopped
+    labels:
+      # You can remove the following labels about traefik If you do not use traefik.
+      # Or You can remove some part if you won't use it.
+      # NOTE, you may need to make adjustments based on your situation.
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_default"
+
+      # Declare redirect http to https middleware.
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-https.redirectscheme.permanent=true"
+
+      # If your app hostname won't contains `www`,then remove the part of `www`.
+
+      # Declare redirect www to non-www middleware.
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-nonwww.redirectregex.regex=^(https?://)www.(.*)$$"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-nonwww.redirectregex.replacement=$${1}$${2}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-nonwww.redirectregex.permanent=true"
+
+      # Enable http access.
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.rule=Host(`${APP_HOSTNAME}`, `www.${APP_HOSTNAME}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.entrypoints=web"
+      # Enable Redirect http to https
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.middlewares=${COMPOSE_PROJECT_NAME}-https"
+      # Enable Redirect www to non-www
+      # - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.middlewares=${COMPOSE_PROJECT_NAME}-nonwww"
+
+      # Enable https access.
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${APP_HOSTNAME}`, `www.${APP_HOSTNAME}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=letsencryptResolver"
+      # Enable Redirect www to non-www
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=${COMPOSE_PROJECT_NAME}-nonwww"
+
+    volumes:
+      - ${APP_CODE_PATH_HOST}:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/logs:/var/log/nginx
+      - ./nginx/sites:/etc/nginx/sites-available
+    command: ["nginx"]
+    expose:
+      - "80"
+      - "443"
+    # prots:
+    #   - "80:80"
+    #   - "443:443"
