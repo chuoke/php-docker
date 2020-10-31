@@ -6,6 +6,8 @@ FROM php:${PHP_VERSION}-fpm-alpine
 ARG APP_CODE_PATH_CONTAINER
 ENV APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}
 
+# RUN chown -R www-data:www-data ${APP_CODE_PATH_CONTAINER}
+
 ARG ALPINE_APK_REPO
 ENV ALPINE_APK_REPO=${ALPINE_APK_REPO}
 RUN if [ ${ALPINE_APK_REPO} ]; then \
@@ -18,6 +20,9 @@ RUN if [ ${ALPINE_APK_REPO} ]; then \
 
 # Install the pdo_mysql extension
 RUN docker-php-ext-install pdo_mysql
+
+# Enable the sockets extension
+RUN docker-php-ext-enable sockets
 
 # Install the intl extension
 RUN apk add --no-cache icu-dev \
