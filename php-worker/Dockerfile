@@ -45,8 +45,8 @@ RUN apk --update add wget \
 # Install the pdo_mysql extension
 RUN docker-php-ext-install pdo_mysql
 
-# Enable the sockets extension
-RUN docker-php-ext-enable sockets
+# Install the sockets extension
+RUN docker-php-ext-install sockets
 
 # Install the intl extension
 RUN apk add --no-cache icu-dev && \
