@@ -13,9 +13,9 @@ networks:
   backend:
 
 services:
-  php:
+  php-fpm:
     build:
-      context: ./php
+      context: ./php-fpm
       args:
         - APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}
         - PHP_VERSION=${PHP_VERSION}
@@ -62,7 +62,7 @@ services:
       - backend
       # - proxy
     depends_on:
-      - php
+      - php-fpm
     restart: unless-stopped
     labels:
       # You can remove the following labels about traefik If you do not use traefik.
